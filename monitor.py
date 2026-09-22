@@ -56,23 +56,54 @@ def post_warning(text):
     requests.post(WEBHOOK_URL, json={"content": text}, timeout=15)
 
 
+def dump_debug(page, label):
+    os.makedirs("debug", exist_ok=True)
+    try:
+        page.screenshot(path=f"debug/{label}.png", full_page=True)
+    except Exception as e:
+        print(f"screenshot failed: {e}")
+    try:
+        with open(f"debug/{label}.html", "w") as f:
+            f.write(page.content())
+    except Exception as e:
+        print(f"html dump failed: {e}")
+
+
 def scrape_page_text():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page(locale="de-DE")
-        page.goto(URL, wait_until="networkidle", timeout=30000)
+        browser = p.chromium.launch(
+            headless=True,
+            channel="chrome",
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        context = browser.new_context(
+            locale="de-DE",
+            viewport={"width": 1366, "height": 900},
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            ),
+            extra_http_headers={"Accept-Language": "de-DE,de;q=0.9"},
+        )
+        page = context.new_page()
+        try:
+            page.goto(URL, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(3000)
 
-        page.click("text=Reservierung kaufen")
-        page.wait_for_timeout(1500)
+            page.click("text=Reservierung kaufen", timeout=15000)
+            page.wait_for_timeout(1500)
 
-        search_btn = page.locator("text=Suche").first
-        if search_btn.count():
-            search_btn.click()
+            search_btn = page.locator("text=Suche").first
+            if search_btn.count():
+                search_btn.click()
 
-        page.wait_for_selector("text=Details anzeigen", timeout=20000)
-        page.wait_for_timeout(2000)
+            page.wait_for_selector("text=Details anzeigen", timeout=20000)
+            page.wait_for_timeout(2000)
 
-        text = page.locator("main").inner_text()
+            text = page.locator("main").inner_text()
+        except Exception:
+            dump_debug(page, "failure")
+            raise
         browser.close()
         return text
 
