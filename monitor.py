@@ -69,6 +69,41 @@ def dump_debug(page, label):
         print(f"html dump failed: {e}")
 
 
+def dismiss_consent(page):
+    try:
+        page.wait_for_selector("#cmpwrapper", timeout=6000)
+    except Exception:
+        return
+
+    reject_labels = [
+        "Ablehnen", "Alle ablehnen", "Nur erforderliche", "Nur notwendige",
+        "Ohne Zustimmung fortfahren", "Auswahl ablehnen",
+    ]
+    accept_labels = ["Alle akzeptieren", "Akzeptieren", "Einverstanden", "Zustimmen"]
+
+    for label in reject_labels + accept_labels:
+        btn = page.locator(f"#cmpwrapper >> text={label}").first
+        if btn.count():
+            try:
+                btn.click(timeout=3000)
+                page.wait_for_timeout(500)
+                return
+            except Exception:
+                continue
+
+    # Consent UI can also live inside an iframe managed by the CMP.
+    for frame in page.frames:
+        for label in reject_labels + accept_labels:
+            try:
+                btn = frame.locator(f"text={label}").first
+                if btn.count():
+                    btn.click(timeout=3000)
+                    page.wait_for_timeout(500)
+                    return
+            except Exception:
+                continue
+
+
 def scrape_page_text():
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -88,14 +123,16 @@ def scrape_page_text():
         page = context.new_page()
         try:
             page.goto(URL, wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(2000)
+            dismiss_consent(page)
 
             page.click("text=Reservierung kaufen", timeout=15000)
             page.wait_for_timeout(1500)
+            dismiss_consent(page)
 
             search_btn = page.locator("text=Suche").first
             if search_btn.count():
-                search_btn.click()
+                search_btn.click(timeout=15000)
 
             page.wait_for_selector("text=Details anzeigen", timeout=20000)
             page.wait_for_timeout(2000)

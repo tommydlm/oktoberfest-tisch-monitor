@@ -27,8 +27,8 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: python monitor.py
 
-      - name: Upload debug artifacts on failure
-        if: failure()
+      - name: Upload debug artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: debug-${{ github.run_id }}
